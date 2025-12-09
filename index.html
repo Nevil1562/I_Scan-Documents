@@ -2,13 +2,12 @@
 <html>
 <head>
 <title>KP Scan & Upload Document</title>
-
-<!-- Dynamsoft Libraries -->
+ 
 <script type="text/javascript" src="Resources/dynamsoft.webtwain.initiate.js"></script>
 <script type="text/javascript" src="Resources/dynamsoft.webtwain.config.js"></script>
-
+ 
 <style>
-body {
+   body {
     font-family: Arial, sans-serif;
     display: flex;
     flex-direction: column;
@@ -16,195 +15,209 @@ body {
     background-color: #f4f4f4;
     margin: 0;
     padding: 0;
+    overflow-y: hidden; /* 🔥 prevents vertical scrollbar */
 }
-
-#input-container {
-    display: flex;
-    gap: 10px;
-    position: fixed;
-    top: 10px;
-    background-color: #f4f4f4;
-    padding: 10px;
-    z-index: 1000;
-}
-
-#scan-button, #cancel-button {
-    width: 200px;
-    height: 35px;
-    font-size: 16px;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-#scan-button { background-color: #28a745; }
-#cancel-button { background-color: #dc3545; }
-
-#preview-container {
-    margin-top: 80px;
+ 
+    #input-container {
+        display: flex;
+        gap: 10px;
+        position: fixed;
+        top: 10px;
+        background-color: #f4f4f4;
+        padding: 10px;
+        z-index: 1000;
+    }
+    #scan-button, #cancel-button {
+        width: 200px;
+        height: 35px;
+        font-size: 16px;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    #scan-button { background-color: #28a745; }
+    #scan-button:hover { background-color: #218838; }
+    #cancel-button { background-color: #dc3545; }
+    #cancel-button:hover { background-color: #c82333; }
+ 
+    #dwtcontrolContainer {
+        width: 400px;
+        height: 500px;
+        background-color: white;
+        border: 2px solid #ccc;
+        margin-top: 20px;
+    }
+ 
+    #preview-container {
+    margin-top: 60px; /* enough space for fixed buttons */
     text-align: center;
 }
-
-#preview-image {
-    width: 400px;
-    height: auto;
-    border: 1px solid #aaa;
-    display: block;
-    margin-bottom: 10px;
-}
-
-#scan-count {
-    font-size: 18px;
-    font-weight: bold;
-}
-
-#dwtcontrolContainer {
-    width: 600px;
-    height: 500px;
-    background-color: white;
-    border: 2px solid #ccc;
-    margin-top: 20px;
-}
+ 
+    #preview-image {
+        width: 0px;
+        border: 1px solid #aaa;
+    }
+ 
+    #scan-count {
+        /* margin-top: 10px; */
+        font-size: 18px;
+        font-weight: bold;
+        color: #000;
+    }
 </style>
 </head>
-
+ 
 <body>
-
+ 
 <div id="input-container">
     <input type="button" id="scan-button" value="Scan" onclick="AcquireImage();" />
     <input type="button" id="cancel-button" value="Clear" onclick="ResetContainer();" />
 </div>
-
-<!-- Preview -->
+ 
+<!-- CUSTOM LARGE PREVIEW -->
 <div id="preview-container">
     <img id="preview-image" />
+    <span id="page-info"></span>
     <div id="scan-count">Scanned Pages: 0</div>
 </div>
-
-<!-- Viewer -->
+ 
+<!-- DWT VIEWER -->
 <div id="dwtcontrolContainer"></div>
-
+ 
 <script type="text/javascript">
-
-let DWObject = null;
+ 
+let DWTObject = null;
 let scannedBlob = null;
-
-/* ---------------------- INIT ----------------------------- */
+ 
+/* ------------------ INIT ------------------ */
 Dynamsoft.DWT.RegisterEvent("OnWebTwainReady", function () {
-    DWObject = Dynamsoft.DWT.GetWebTwain("dwtcontrolContainer");
-
-    console.log("WebTWAIN initialized:", DWObject);
-
-    if (DWObject) {
-        DWObject.Viewer.bind(document.getElementById("dwtcontrolContainer"));
-        DWObject.Viewer.show();
+    DWTObject = Dynamsoft.DWT.GetWebTwain('dwtcontrolContainer');
+ 
+    if (DWTObject && DWTObject.Viewer) {
+        DWTObject.Viewer.bind(document.getElementById("dwtcontrolContainer"));
+        DWTObject.Viewer.show();
     }
 });
-
-/* ---------------------- Update Preview -------------------- */
-function updatePreview() {
-    if (!DWObject) return;
-
-    let count = DWObject.HowManyImagesInBuffer;
-
-    document.getElementById("scan-count").innerText = "Scanned Pages: " + count;
-
-    if (count === 0) {
-        document.getElementById("preview-image").src = "";
-        return;
-    }
-
-    let firstImageURL = DWObject.GetImageURL(0);
-    document.getElementById("preview-image").src = firstImageURL;
+ 
+/* ------------------ GET SCAN COUNT ------------------ */
+function getScanCount() {
+    if (!DWTObject) return 0;
+    return DWTObject.HowManyImagesInBuffer;
 }
-
-/* ---------------------- Scan ------------------------------ */
-function AcquireImage() {
-    if (!DWObject) {
-        alert("Scanner not initialized.");
+ 
+/* ------------------ UPDATE PREVIEW ------------------ */
+function updatePreview() {
+    if (!DWTObject) return;
+ 
+    const total = getScanCount();
+ 
+    if (total === 0) {
+        document.getElementById("preview-image").src = "";
+        // document.getElementById("page-info").innerText = "Page 0 of 0";
+        document.getElementById("scan-count").innerText = "Scanned Pages: 0";
         return;
     }
-
-    DWObject.GetSourceNamesAsync()
+ 
+    const imageURL = DWTObject.GetImageURL(0);
+    document.getElementById("preview-image").src = imageURL;
+    // document.getElementById("page-info").innerText = `Page 1 of ${total}`;
+    document.getElementById("scan-count").innerText = "Scanned Pages: " + total;
+}
+ 
+/* ------------------ SCAN FUNCTION ------------------ */
+function AcquireImage() {
+    if (!DWTObject) return;
+ 
+    DWTObject.GetSourceNamesAsync()
         .then(sources => {
             if (sources.length === 0) {
                 alert("No scanner detected.");
-                return Promise.reject();
+                return Promise.reject("No scanner available.");
             }
-            console.log("Sources:", sources);
-            return DWObject.OpenSourceAsync();
+            return DWTObject.OpenSourceAsync();
         })
         .then(() => {
-            console.log("Scanner opened. Starting scan...");
-            return DWObject.AcquireImageAsync({
+            return DWTObject.AcquireImageAsync({
                 IfAppendImage: true,
                 IfCloseSourceAfterAcquire: true
             });
         })
         .then(() => {
-            console.log("Scan completed.");
             updatePreview();
-
-            let total = DWObject.HowManyImagesInBuffer;
-            let indexes = Array.from({ length: total }, (_, i) => i);
-
-            return DWObject.ConvertToBlob(indexes, Dynamsoft.DWT.EnumDWT_ImageType.IT_PDF);
+ 
+            const count = getScanCount();
+            console.log("Scanned pages in dwtcontrolContainer:", count);
+ 
+            const allIndexes = Array.from({ length: count }, (_, i) => i);
+ 
+            return DWTObject.ConvertToBlob(
+                allIndexes,
+                Dynamsoft.DWT.EnumDWT_ImageType.IT_PDF
+            );
         })
-        .then(blob => {
-            scannedBlob = blob;
-            console.log("PDF blob created:", blob);
+        .then(result => {
+            scannedBlob = result;
             uploadToOneDrive();
         })
-        .catch(err => console.error("Scan error:", err));
+        .catch(err => console.error(err.message || err));
 }
-
-/* ---------------------- Upload --------------------------- */
+ 
+/* ------------------ GET URL PARAMS ------------------ */
 function getQueryParameter(name) {
-    let p = new URLSearchParams(window.location.search);
-    return p.get(name) || "";
+    const params = new URLSearchParams(window.location.search);
+    return params.get(name) || "";
 }
-
+ 
+/* ------------------ ONEDRIVE UPLOAD ------------------ */
 async function uploadToOneDrive() {
-    let accessToken = getQueryParameter("access_token");
-    let fileName = getQueryParameter("file_name");
-
+    const accessToken = getQueryParameter("access_token");
+    const fileName = getQueryParameter("file_name");
+    const applicationType = getQueryParameter("application_type") || "application/pdf";
+ 
     if (!accessToken || !fileName) {
         alert("Missing access_token or file_name.");
         return;
     }
-
-    let uploadUrl = `https://graph.microsoft.com/${fileName}`;
-
+ 
+    const uploadUrl = `https://graph.microsoft.com/${fileName}`;
+ 
     try {
-        let resp = await fetch(uploadUrl, {
+        const response = await fetch(uploadUrl, {
             method: "PUT",
             headers: {
                 "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/pdf"
+                "Content-Type": applicationType
             },
             body: scannedBlob
         });
-
-        if (resp.ok) {
-            alert("Uploaded successfully!");
-            DWObject.RemoveAllImages();
-            updatePreview();
-        } else {
-            alert("Upload failed:\n" + await resp.text());
+ 
+        if (response.ok) {
+            await response.json();
+            alert("File uploaded successfully!");
+ 
+            try { DWTObject.RemoveAllImages(); } catch(e) {}
+ 
+            updatePreview(); // resets scan count + preview
         }
-    } catch (e) {
-        console.error(e);
-        alert("Unexpected upload error.");
+        else {
+            const text = await response.text();
+            alert("Upload failed:\n" + text);
+        }
+    }
+    catch (err) {
+        alert("Unexpected error.");
+        console.error(err);
     }
 }
-
-/* ---------------------- Reset ---------------------------- */
+ 
+/* ------------------ RESET ------------------ */
 function ResetContainer() {
-    try { DWObject.RemoveAllImages(); } catch (e) {}
+    try { DWTObject.RemoveAllImages(); } catch(e) {}
     updatePreview();
 }
-
+ 
 </script>
-
 </body>
-</html>
+</html> 
+ 
